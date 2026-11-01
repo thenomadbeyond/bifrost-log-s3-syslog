@@ -1,0 +1,20 @@
+{{- $_ := required "config.S3_BUCKET ist Pflicht" .Values.config.S3_BUCKET -}}
+{{- $_ := required "config.SYSLOG_HOST ist Pflicht" .Values.config.SYSLOG_HOST -}}
+{{- if and (eq .Values.state.type "s3") (not .Values.state.s3Uri) }}{{ fail "state.s3Uri ist bei state.type=s3 Pflicht" }}{{ end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "b3s.name" . }}
+  labels: {{- include "b3s.labels" . | nindent 4 }}
+data:
+  RUN_MODE: loop
+  STATE_DB: /data/state.db
+  {{- if eq .Values.state.type "s3" }}
+  STATE_S3_URI: {{ .Values.state.s3Uri | quote }}
+  STATE_SYNC_SECONDS: {{ .Values.state.syncSeconds | quote }}
+  {{- end }}
+  {{- range $k, $v := .Values.config }}
+  {{- if ne (toString $v) "" }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+  {{- end }}

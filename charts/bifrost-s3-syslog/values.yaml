@@ -1,0 +1,52 @@
+image:
+  repository: ghcr.io/thenomadbeyond/bifrost-s3-syslog
+  # leer = appVersion des Charts. Fuer Cluster mit disallow-latest-Policy einen festen Tag (vX.Y.Z / sha-...) setzen.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Umgebungsvariablen des Shippers (siehe README: Konfiguration). S3_BUCKET und SYSLOG_HOST sind Pflicht.
+config:
+  S3_BUCKET: ""
+  S3_PREFIXES: ""
+  # S3_ENDPOINT_URL: http://garage.garage.svc:3900
+  # S3_FORCE_PATH_STYLE: "true"
+  # AWS_REGION: garage
+  SYSLOG_HOST: ""
+  SYSLOG_PORT: "514"
+  SYSLOG_PROTOCOL: tcp
+  SYSLOG_FRAMING: octet
+  SYSLOG_APP_NAME: bifrost
+  SYSLOG_HOSTNAME: bifrost-s3-syslog
+  COMMIT_EVERY: "500"
+  INTERVAL_SECONDS: "300"
+  LOG_LEVEL: INFO
+
+# Zusaetzliche Variablen (Liste im env-Format, auch valueFrom moeglich)
+extraEnv: []
+
+# Secret mit AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (existierendes Secret; leer = keins, z. B. bei IRSA)
+existingSecret: ""
+
+state:
+  # s3: State in STATE_S3_URI (kein PVC), pvc: State auf PersistentVolumeClaim
+  type: s3
+  # type s3: Ziel, ausserhalb von config.S3_PREFIXES, z. B. s3://bucket/_shipper/state.db
+  s3Uri: ""
+  syncSeconds: 30
+  pvc:
+    size: 1Gi
+    storageClass: ""
+    existingClaim: ""
+
+serviceAccount:
+  annotations: {}   # z. B. eks.amazonaws.com/role-arn
+
+resources:
+  requests: {cpu: 50m, memory: 128Mi}
+  limits: {memory: 512Mi}
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

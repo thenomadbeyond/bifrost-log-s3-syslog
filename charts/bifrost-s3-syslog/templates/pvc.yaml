@@ -1,0 +1,15 @@
+{{- if and (eq .Values.state.type "pvc") (not .Values.state.pvc.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "b3s.name" . }}-state
+  labels: {{- include "b3s.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.state.pvc.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.state.pvc.size }}
+{{- end }}
