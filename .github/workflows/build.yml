@@ -46,3 +46,30 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  chart:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Chart paketieren und nach GHCR pushen (OCI)
+        env:
+          OWNER: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Tag vX.Y.Z -> Chart X.Y.Z (appVersion = Image-Tag X.Y.Z); main -> 0.0.0-dev.<run> (appVersion sha-<7>)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"; app="$version"
+          else
+            version="0.0.0-dev.${GITHUB_RUN_NUMBER}"; app="sha-${GITHUB_SHA::7}"
+          fi
+          owner="${OWNER,,}"
+          helm lint charts/bifrost-s3-syslog --set config.S3_BUCKET=b --set config.SYSLOG_HOST=h --set state.s3Uri=s3://b/s
+          helm package charts/bifrost-s3-syslog --version "$version" --app-version "$app" -d /tmp/chart
+          echo "$TOKEN" | helm registry login ghcr.io -u "$ACTOR" --password-stdin
+          helm push /tmp/chart/bifrost-s3-syslog-"$version".tgz "oci://ghcr.io/${owner}/charts"

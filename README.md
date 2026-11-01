@@ -129,7 +129,26 @@ nicht unter `S3_PREFIXES` legen.
 Wechsel zwischen den Varianten: Bei Deployment → CronJob vorher `state.db` aus dem PVC
 nach `STATE_S3_URI` kopieren, sonst wird alles erneut gesendet.
 
+## Helm-Chart (OCI)
+
+Das Chart `charts/bifrost-s3-syslog` (Shipper als Deployment, State in S3 oder PVC) wird von
+der CI nach `oci://ghcr.io/thenomadbeyond/charts/bifrost-s3-syslog` gepusht: `main` als
+`0.0.0-dev.<run>` (Image-Tag `sha-<7>`), Tag `vX.Y.Z` als `X.Y.Z`.
+
+```bash
+helm install bifrost-s3-syslog oci://ghcr.io/thenomadbeyond/charts/bifrost-s3-syslog \
+  --version 0.0.0-dev.<run> -n bifrost-logging \
+  --set config.S3_BUCKET=my-bifrost-logs --set config.S3_PREFIXES=logs/ \
+  --set config.SYSLOG_HOST=rsyslog --set state.s3Uri=s3://my-bifrost-logs/_shipper/state.db \
+  --set existingSecret=bifrost-s3-syslog-aws
+```
+
+Pflicht: `config.S3_BUCKET`, `config.SYSLOG_HOST`, bei `state.type=s3` (Default) auch
+`state.s3Uri`. Alle Shipper-Variablen aus der Tabelle oben gehen unter `config.*`; Credentials
+kommen aus einem bestehenden Secret (`existingSecret`) oder per IRSA (`serviceAccount.annotations`).
+Dateien: `charts/bifrost-s3-syslog/values.yaml`. Der rsyslog gehoert nicht zum Chart.
+
 ## Image bauen (GitHub Actions)
 
 `.github/workflows/build.yml` baut bei jedem Push auf `main` und bei Tags `v*` das Image
-und schiebt es nach `ghcr.io/<owner>/bifrost-s3-syslog`.
+und schiebt es nach `ghcr.io/<owner>/bifrost-s3-syslog`. Danach pusht der Job `chart` das Helm-Chart (siehe oben).
