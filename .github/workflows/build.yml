@@ -5,6 +5,9 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  schedule:
+    # every second day at 03:17 UTC: rebuild on the latest base image (security updates)
+    - cron: "17 3 */2 * *"
 
 permissions:
   contents: read
@@ -41,6 +44,9 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
+          # always fetch the latest base image; scheduled builds skip the layer cache
+          pull: true
+          no-cache: ${{ github.event_name == 'schedule' }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -49,7 +55,8 @@ jobs:
 
   chart:
     needs: build
-    if: github.event_name != 'pull_request'
+    # the scheduled rebuild only refreshes the image, no new chart version
+    if: github.event_name != 'pull_request' && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

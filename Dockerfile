@@ -4,6 +4,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     STATE_DB=/data/state.db
 
+# security updates of the OS packages that are newer than the base image
+RUN apt-get update && apt-get -y --no-install-recommends upgrade \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
