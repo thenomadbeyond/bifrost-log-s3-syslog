@@ -1,6 +1,6 @@
 apiVersion: v2
 name: bifrost-s3-syslog
-description: Liest Bifrost-Logs (JSON) aus S3 und schickt sie als Syslog-Nachrichten an einen Syslog-Server
+description: Reads Bifrost logs (JSON) from S3 and sends them as syslog messages to a syslog server
 type: application
 version: 0.1.0
 appVersion: "main"
