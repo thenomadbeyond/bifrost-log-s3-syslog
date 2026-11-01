@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bifrost-s3-syslog-state
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: gp3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bifrost-s3-syslog
+  labels: { app: bifrost-s3-syslog }
+spec:
+  replicas: 1                 # NIE hochskalieren - der State ist nicht für parallele Instanzen gebaut
+  strategy:
+    type: Recreate            # alter Pod endet, bevor der neue startet (kein Parallelbetrieb, RWO-PVC)
+  selector:
+    matchLabels: { app: bifrost-s3-syslog }
+  template:
+    metadata:
+      labels: { app: bifrost-s3-syslog }
+    spec:
+      serviceAccountName: bifrost-s3-syslog
+      terminationGracePeriodSeconds: 60   # Zeit, den laufenden Batch sauber abzuschließen
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: shipper
+          image: bifrost-s3-syslog
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: bifrost-s3-syslog }
+            - secretRef: { name: bifrost-s3-syslog-aws, optional: true }
+          env:
+            - { name: RUN_MODE, value: "loop" }
+            - { name: INTERVAL_SECONDS, value: "300" }
+            - { name: STATE_DB, value: "/data/state.db" }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }     # ganze Log-Datei liegt beim Verarbeiten im RAM
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: state, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: state
+          persistentVolumeClaim: { claimName: bifrost-s3-syslog-state }
+        - name: tmp
+          emptyDir: {}

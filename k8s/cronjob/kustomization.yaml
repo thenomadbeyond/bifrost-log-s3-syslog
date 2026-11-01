@@ -1,0 +1,13 @@
+# Variante B: CronJob alle 5 Minuten (RUN_MODE=once), State in S3
+# kubectl apply -k k8s/cronjob
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: bifrost-logging
+components:
+  - ../common
+resources:
+  - cronjob.yaml
+images:
+  - name: bifrost-s3-syslog
+    newName: ghcr.io/OWNER/bifrost-s3-syslog   # anpassen
+    newTag: latest

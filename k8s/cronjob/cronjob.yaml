@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bifrost-s3-syslog
+  labels: { app: bifrost-s3-syslog }
+spec:
+  schedule: "*/5 * * * *"
+  timeZone: "Europe/Berlin"
+  concurrencyPolicy: Forbid       # nie zwei Läufe gleichzeitig
+  startingDeadlineSeconds: 240
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600 # hängende Läufe nach 1h beenden (Fortschritt bleibt erhalten)
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: { app: bifrost-s3-syslog }
+        spec:
+          restartPolicy: Never
+          serviceAccountName: bifrost-s3-syslog
+          terminationGracePeriodSeconds: 60
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: shipper
+              image: bifrost-s3-syslog
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef: { name: bifrost-s3-syslog }
+                - secretRef: { name: bifrost-s3-syslog-aws, optional: true }
+              env:
+                - { name: RUN_MODE, value: "once" }
+                # State liegt in S3 -> kein PVC nötig, Pods können auf jedem Node laufen.
+                # Präfix NICHT unter S3_PREFIXES legen.
+                - { name: STATE_S3_URI, value: "s3://my-bifrost-logs/_bifrost-s3-syslog/state.db" }
+                - { name: STATE_DB, value: "/data/state.db" }
+                - { name: STATE_SYNC_SECONDS, value: "30" }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }
+              volumeMounts:
+                - { name: state, mountPath: /data }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - name: state
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
