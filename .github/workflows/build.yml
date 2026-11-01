@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Syntax-Check
+      - name: Syntax check
         run: python3 -m py_compile shipper.py
 
       - uses: docker/setup-buildx-action@v3
@@ -56,13 +56,13 @@ jobs:
 
       - uses: azure/setup-helm@v4
 
-      - name: Chart paketieren und nach GHCR pushen (OCI)
+      - name: Package chart and push to GHCR (OCI)
         env:
           OWNER: ${{ github.repository_owner }}
           ACTOR: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Tag vX.Y.Z -> Chart X.Y.Z (appVersion = Image-Tag X.Y.Z); main -> 0.0.0-dev.<run> (appVersion sha-<7>)
+          # tag vX.Y.Z -> chart X.Y.Z (appVersion = image tag X.Y.Z); main -> 0.0.0-dev.<run> (appVersion sha-<7>)
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"; app="$version"
           else

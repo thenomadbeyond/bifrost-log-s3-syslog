@@ -1,4 +1,4 @@
-# Variante A: Dauerläufer (Deployment, RUN_MODE=loop), State auf PVC
+# Variant A: long-running (Deployment, RUN_MODE=loop), state on PVC
 # kubectl apply -k k8s/deployment
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -9,5 +9,5 @@ resources:
   - deployment.yaml
 images:
   - name: bifrost-s3-syslog
-    newName: ghcr.io/OWNER/bifrost-s3-syslog   # anpassen
+    newName: ghcr.io/OWNER/bifrost-s3-syslog   # adjust
     newTag: latest

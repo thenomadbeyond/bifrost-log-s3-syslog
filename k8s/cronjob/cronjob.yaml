@@ -6,14 +6,14 @@ metadata:
 spec:
   schedule: "*/5 * * * *"
   timeZone: "Europe/Berlin"
-  concurrencyPolicy: Forbid       # nie zwei Läufe gleichzeitig
+  concurrencyPolicy: Forbid       # never two runs at once
   startingDeadlineSeconds: 240
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
       backoffLimit: 2
-      activeDeadlineSeconds: 3600 # hängende Läufe nach 1h beenden (Fortschritt bleibt erhalten)
+      activeDeadlineSeconds: 3600 # end hanging runs after 1h (progress is kept)
       ttlSecondsAfterFinished: 86400
       template:
         metadata:
@@ -36,8 +36,8 @@ spec:
                 - secretRef: { name: bifrost-s3-syslog-aws, optional: true }
               env:
                 - { name: RUN_MODE, value: "once" }
-                # State liegt in S3 -> kein PVC nötig, Pods können auf jedem Node laufen.
-                # Präfix NICHT unter S3_PREFIXES legen.
+                # State lives in S3 -> no PVC needed, pods can run on any node.
+                # Do NOT put this prefix under S3_PREFIXES.
                 - { name: STATE_S3_URI, value: "s3://my-bifrost-logs/_bifrost-s3-syslog/state.db" }
                 - { name: STATE_DB, value: "/data/state.db" }
                 - { name: STATE_SYNC_SECONDS, value: "30" }

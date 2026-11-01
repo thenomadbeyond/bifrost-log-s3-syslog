@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 bifrost-s3-syslog
-Liest Bifrost-JSON-Logs aus S3 und sendet jeden Datensatz als Syslog-Nachricht
-an einen rsyslog-Server. Ein SQLite-State verhindert Doppelversand.
+Reads Bifrost JSON logs from S3 and sends every record as a syslog message
+to an rsyslog server. A SQLite state prevents duplicate delivery.
 
-State pro S3-Objekt: (bucket, key, etag, records_sent, done)
-- Fortschritt wird alle COMMIT_EVERY Datensätze gespeichert -> nach Abbruch
-  wird ab dem letzten Commit weitergemacht.
-- Bei TCP wird vor jedem Commit die Verbindung sauber geschlossen und auf das
-  EOF von rsyslog gewartet. Erst dann gilt der Batch als zugestellt.
+State per S3 object: (bucket, key, etag, records_sent, done)
+- Progress is saved every COMMIT_EVERY records -> after an abort, processing
+  resumes from the last commit.
+- With TCP, the connection is closed cleanly before every commit and the
+  shipper waits for rsyslog's EOF. Only then is the batch considered delivered.
 """
 import datetime
 import gzip
@@ -48,14 +48,14 @@ STOP = False
 def _on_signal(signum, _frame):
     global STOP
     STOP = True
-    log.info("Signal %s empfangen - beende nach aktuellem Batch", signum)
+    log.info("Received signal %s - stopping after the current batch", signum)
 
 
 # --------------------------------------------------------------------------- config
 def env(name, default=None, required=False):
     val = os.environ.get(name, default)
     if required and (val is None or str(val).strip() == ""):
-        sys.exit(f"Fehlende Umgebungsvariable: {name}")
+        sys.exit(f"Missing environment variable: {name}")
     return val
 
 
@@ -94,7 +94,7 @@ class Cfg:
         self.tls_verify = env_bool("SYSLOG_TLS_VERIFY", True)
         self.timeout = float(env("SYSLOG_TIMEOUT", "10"))
         self.retries = env_int("SYSLOG_RETRIES", 5)
-        self.max_bytes = env_int("SYSLOG_MAX_MSG_BYTES", 0)          # 0 = kein Limit
+        self.max_bytes = env_int("SYSLOG_MAX_MSG_BYTES", 0)          # 0 = no limit
 
         self.state_db = env("STATE_DB", "/data/state.db")
         self.state_s3 = env("STATE_S3_URI") or None                  # s3://bucket/key
@@ -149,7 +149,7 @@ class State:
         self.db.commit()
 
     def snapshot(self, dest):
-        """Konsistente Kopie der DB (für Upload nach S3)."""
+        """Consistent copy of the DB (for upload to S3)."""
         out = sqlite3.connect(dest)
         with out:
             self.db.backup(out)
@@ -157,11 +157,11 @@ class State:
 
 
 class StateSync:
-    """Optional: State-DB in S3 sichern, damit der Container stateless laufen kann."""
+    """Optional: back up the state DB to S3 so the container can run stateless."""
 
     def __init__(self, s3, uri, local_path, interval):
         if not uri.startswith("s3://"):
-            sys.exit("STATE_S3_URI muss mit s3:// beginnen")
+            sys.exit("STATE_S3_URI must start with s3://")
         self.bucket, _, self.key = uri[5:].partition("/")
         self.s3, self.local, self.interval = s3, local_path, interval
         self.last = time.monotonic()
@@ -170,10 +170,10 @@ class StateSync:
         os.makedirs(os.path.dirname(os.path.abspath(self.local)), exist_ok=True)
         try:
             self.s3.download_file(self.bucket, self.key, self.local)
-            log.info("State aus s3://%s/%s geladen", self.bucket, self.key)
+            log.info("State loaded from s3://%s/%s", self.bucket, self.key)
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
-                log.info("Noch kein State in S3 - starte neu")
+                log.info("No state in S3 yet - starting fresh")
             else:
                 raise
 
@@ -186,7 +186,7 @@ class StateSync:
             state.snapshot(tmp_path)
             self.s3.upload_file(tmp_path, self.bucket, self.key)
             self.last = time.monotonic()
-            log.debug("State nach S3 gesichert")
+            log.debug("State saved to S3")
         finally:
             os.unlink(tmp_path)
 
@@ -221,7 +221,7 @@ def record_time(obj):
 
 def iter_records(body: bytes):
     """Liefert (zeile_als_string, geparstes_objekt_oder_None) in fester Reihenfolge.
-    Unterstützt: JSON-Array, einzelnes JSON-Objekt, JSON Lines; jeweils optional gzip."""
+    Supports: JSON array, single JSON object, JSON Lines; each optionally gzip-compressed."""
     if body[:2] == b"\x1f\x8b":
         body = gzip.decompress(body)
     text = body.decode("utf-8", errors="replace").lstrip("\ufeff").strip()
@@ -247,7 +247,7 @@ def iter_records(body: bytes):
             obj = json.loads(line)
             yield json.dumps(obj, ensure_ascii=False, separators=(",", ":")), obj
         except json.JSONDecodeError:
-            log.warning("Ungültige JSON-Zeile wird roh gesendet: %.120s", line)
+            log.warning("Invalid JSON line is sent raw: %.120s", line)
             yield line, None
 
 
@@ -273,7 +273,7 @@ class Formatter:
             line = f"<{self.pri}>{lt:%b} {lt.day:2d} {lt:%H:%M:%S} {c.hostname} {c.app_name}: {msg}"
         data = line.encode("utf-8")
         if c.max_bytes and len(data) > c.max_bytes:
-            log.warning("Nachricht aus %s gekürzt (%d > %d Bytes)", key, len(data), c.max_bytes)
+            log.warning("Message from %s truncated (%d > %d bytes)", key, len(data), c.max_bytes)
             data = data[: c.max_bytes]
         return data
 
@@ -300,7 +300,7 @@ class Sender:
                 s = ctx.wrap_socket(s, server_hostname=c.host)
         s.settimeout(c.timeout)
         self.sock = s
-        log.debug("Verbunden mit %s:%s (%s)", c.host, c.port, c.proto)
+        log.debug("Connected to %s:%s (%s)", c.host, c.port, c.proto)
 
     def _frame(self, data):
         if self.cfg.proto == "udp":
@@ -312,9 +312,9 @@ class Sender:
     unconfirmed = 0
 
     def send(self, data):
-        """Sendet eine Nachricht. Bricht die Verbindung ab, nachdem im aktuellen Batch
-        schon Daten gesendet wurden, wird BatchLost geworfen -> Aufrufer sendet den
-        Batch ab dem letzten Commit erneut (at-least-once, kein Datenverlust)."""
+        """Sends one message. If the connection drops after data of the current batch
+        was already sent, BatchLost is raised -> the caller resends the batch
+        from the last commit (at-least-once, no data loss)."""
         frame = self._frame(data)
         delay = 1.0
         for attempt in range(1, self.cfg.retries + 1):
@@ -325,19 +325,19 @@ class Sender:
                 self.unconfirmed += 1
                 return
             except OSError as e:
-                log.warning("Senden fehlgeschlagen (Versuch %d/%d): %s", attempt, self.cfg.retries, e)
+                log.warning("Send failed (attempt %d/%d): %s", attempt, self.cfg.retries, e)
                 self.close(quiet=True)
                 if self.unconfirmed and self.cfg.proto != "udp":
                     self.unconfirmed = 0
                     raise BatchLost(str(e)) from e
             time.sleep(delay)
             delay = min(delay * 2, 30)
-        raise ConnectionError(f"rsyslog nicht erreichbar nach {self.cfg.retries} Versuchen")
+        raise ConnectionError(f"rsyslog unreachable after {self.cfg.retries} attempts")
 
     def confirm(self):
-        """Bestätigt, dass alle bisher gesendeten Daten beim Server angekommen sind.
-        TCP: Schreibseite schließen und auf EOF des Servers warten (rsyslog hat alles gelesen).
-        TLS/UDP: keine Bestätigung möglich -> nur sauber schließen."""
+        """Confirms that all data sent so far has reached the server.
+        TCP: close the write side and wait for the server's EOF (rsyslog has read everything).
+        TLS/UDP: no confirmation possible -> just close cleanly."""
         self.unconfirmed = 0
         if self.sock is None:
             return
@@ -387,22 +387,22 @@ class Shipper:
                     yield obj
 
     def start_offset(self, key, etag, size):
-        """Gibt den Start-Index zurück oder None, wenn nichts zu tun ist."""
+        """Returns the start index, or None if there is nothing to do."""
         row = self.state.get(self.cfg.bucket, key)
         if not row:
             return 0
         old_etag, sent, done = row
         if old_etag == etag:
             return None if done else sent
-        # Objekt wurde seit dem letzten Lauf überschrieben
+        # Object was overwritten since the last run
         if self.cfg.on_change == "skip":
-            log.info("%s geändert - ignoriert (ON_OBJECT_CHANGE=skip)", key)
+            log.info("%s changed - ignored (ON_OBJECT_CHANGE=skip)", key)
             self.state.save(self.cfg.bucket, key, etag, size, sent, True)
             return None
         if self.cfg.on_change == "resend":
-            log.info("%s geändert - wird komplett neu gesendet", key)
+            log.info("%s changed - will be resent completely", key)
             return 0
-        log.info("%s geändert - sende ab Datensatz %d (Append angenommen)", key, sent)
+        log.info("%s changed - sending from record %d (append assumed)", key, sent)
         return sent
 
     def process(self, obj):
@@ -415,7 +415,7 @@ class Shipper:
             body = self.s3.get_object(Bucket=bucket, Key=key, IfMatch=obj["ETag"])["Body"].read()
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") in ("PreconditionFailed", "412"):
-                log.info("%s wurde während des Lesens geändert - nächster Lauf", key)
+                log.info("%s changed while reading - next run", key)
                 return 0
             raise
 
@@ -442,13 +442,13 @@ class Shipper:
                     self.sender.confirm()
                 break
             except (BatchLost, OSError) as e:
-                # Verbindung im Batch abgebrochen / Bestätigung fehlgeschlagen:
-                # ab letztem Commit neu senden
+                # Connection dropped within the batch / acknowledgement failed:
+                # resend from the last commit
                 self.sender.close(quiet=True)
                 self.sender.unconfirmed = 0
                 if attempt == self.cfg.retries:
-                    raise ConnectionError(f"{key}: Batch konnte nicht zugestellt werden: {e}") from e
-                log.warning("%s: Batch ab Datensatz %d wird neu gesendet (%s)", key, committed, e)
+                    raise ConnectionError(f"{key}: batch could not be delivered: {e}") from e
+                log.warning("%s: batch from record %d is being resent (%s)", key, committed, e)
                 time.sleep(min(2 ** attempt, 30))
         total = max(len(records), start)
         self.state.save(bucket, key, etag, size, total, True)
@@ -456,7 +456,7 @@ class Shipper:
             self.sync.upload(self.state)
         sent = total - start
         if sent:
-            log.info("%s: %d Datensätze gesendet", key, sent)
+            log.info("%s: %d records sent", key, sent)
         return sent
 
     def run_cycle(self):
@@ -469,11 +469,11 @@ class Shipper:
                 if n:
                     objs += 1
                     recs += n
-        except Exception as e:  # noqa: BLE001 - Lauf abbrechen, nächster Zyklus versucht erneut
-            log.error("Lauf abgebrochen: %s", e, exc_info=log.isEnabledFor(logging.DEBUG))
+        except Exception as e:  # noqa: BLE001 - abort run, next cycle retries
+            log.error("Run aborted: %s", e, exc_info=log.isEnabledFor(logging.DEBUG))
             self.sender.close(quiet=True)
             ok = False
-        log.info("Lauf beendet: %d Objekte, %d Datensätze, %.1fs", objs, recs, time.monotonic() - t0)
+        log.info("Run finished: %d objects, %d records, %.1fs", objs, recs, time.monotonic() - t0)
         return ok
 
 
@@ -504,7 +504,7 @@ def main():
     sender = Sender(cfg)
     shipper = Shipper(cfg, s3, state, sender, sync)
 
-    log.info("Start: s3://%s/%s -> %s://%s:%s (Modus %s)",
+    log.info("Start: s3://%s/%s -> %s://%s:%s (mode %s)",
              cfg.bucket, ",".join(cfg.prefixes), cfg.proto, cfg.host, cfg.port, cfg.mode)
     ok = True
     while True:

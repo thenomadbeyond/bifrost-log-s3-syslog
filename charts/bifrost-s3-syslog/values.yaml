@@ -1,11 +1,11 @@
 image:
   repository: ghcr.io/thenomadbeyond/bifrost-s3-syslog
-  # leer = appVersion des Charts. Fuer Cluster mit disallow-latest-Policy einen festen Tag (vX.Y.Z / sha-...) setzen.
+  # empty = chart appVersion. On clusters with a disallow-latest policy set a fixed tag (vX.Y.Z / sha-...).
   tag: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
-# Umgebungsvariablen des Shippers (siehe README: Konfiguration). S3_BUCKET und SYSLOG_HOST sind Pflicht.
+# Shipper environment variables (see README: Configuration). S3_BUCKET and SYSLOG_HOST are required.
 config:
   S3_BUCKET: ""
   S3_PREFIXES: ""
@@ -22,16 +22,16 @@ config:
   INTERVAL_SECONDS: "300"
   LOG_LEVEL: INFO
 
-# Zusaetzliche Variablen (Liste im env-Format, auch valueFrom moeglich)
+# Additional variables (list in env format, valueFrom is possible too)
 extraEnv: []
 
-# Secret mit AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (existierendes Secret; leer = keins, z. B. bei IRSA)
+# Secret with AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (existing Secret; empty = none, e.g. with IRSA)
 existingSecret: ""
 
 state:
-  # s3: State in STATE_S3_URI (kein PVC), pvc: State auf PersistentVolumeClaim
+  # s3: state in STATE_S3_URI (no PVC), pvc: state on a PersistentVolumeClaim
   type: s3
-  # type s3: Ziel, ausserhalb von config.S3_PREFIXES, z. B. s3://bucket/_shipper/state.db
+  # type s3: target, outside of config.S3_PREFIXES, e.g. s3://bucket/_shipper/state.db
   s3Uri: ""
   syncSeconds: 30
   pvc:

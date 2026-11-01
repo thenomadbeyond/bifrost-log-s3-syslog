@@ -4,7 +4,7 @@ metadata:
   name: {{ include "b3s.name" . }}
   labels: {{- include "b3s.labels" . | nindent 4 }}
 spec:
-  # NIE hochskalieren: der State ist nicht fuer parallele Instanzen gebaut
+  # NEVER scale up: the state is not built for parallel instances
   replicas: 1
   strategy:
     type: Recreate

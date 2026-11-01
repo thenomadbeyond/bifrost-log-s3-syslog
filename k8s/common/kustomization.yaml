@@ -4,4 +4,4 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - configmap.yaml
-  # - secret.example.yaml   # nur ohne IAM-Rolle; besser Secret separat anlegen
+  # - secret.example.yaml   # only without an IAM role; better create the Secret separately

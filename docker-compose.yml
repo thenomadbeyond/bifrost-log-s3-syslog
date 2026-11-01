@@ -4,20 +4,20 @@ services:
     image: bifrost-s3-syslog:latest
     restart: unless-stopped
     environment:
-      # --- Quelle ---
+      # --- Source ---
       S3_BUCKET: my-bifrost-logs
-      S3_PREFIXES: "logs/"               # mehrere mit Komma: "logs/prod/,logs/stage/"
+      S3_PREFIXES: "logs/"               # multiple, comma-separated: "logs/prod/,logs/stage/"
       AWS_REGION: eu-central-1
-      # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY oder IAM-Rolle
-      # S3_ENDPOINT_URL: https://minio.example.local   # für MinIO/Ceph etc.
+      # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY or IAM role
+      # S3_ENDPOINT_URL: https://minio.example.local   # for MinIO/Ceph etc.
       # S3_FORCE_PATH_STYLE: "true"
-      # --- Ziel ---
+      # --- Destination ---
       SYSLOG_HOST: rsyslog.example.local
       SYSLOG_PORT: "514"
       SYSLOG_PROTOCOL: tcp               # tcp | tls | udp
       SYSLOG_FACILITY: local0
       SYSLOG_APP_NAME: bifrost
-      # --- Ablauf ---
+      # --- Behaviour ---
       RUN_MODE: loop
       INTERVAL_SECONDS: "300"
     volumes:

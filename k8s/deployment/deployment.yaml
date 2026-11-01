@@ -15,9 +15,9 @@ metadata:
   name: bifrost-s3-syslog
   labels: { app: bifrost-s3-syslog }
 spec:
-  replicas: 1                 # NIE hochskalieren - der State ist nicht für parallele Instanzen gebaut
+  replicas: 1                 # NEVER scale up - the state is not built for parallel instances
   strategy:
-    type: Recreate            # alter Pod endet, bevor der neue startet (kein Parallelbetrieb, RWO-PVC)
+    type: Recreate            # old pod ends before the new one starts (no parallel run, RWO PVC)
   selector:
     matchLabels: { app: bifrost-s3-syslog }
   template:
@@ -25,7 +25,7 @@ spec:
       labels: { app: bifrost-s3-syslog }
     spec:
       serviceAccountName: bifrost-s3-syslog
-      terminationGracePeriodSeconds: 60   # Zeit, den laufenden Batch sauber abzuschließen
+      terminationGracePeriodSeconds: 60   # time to finish the running batch cleanly
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -44,7 +44,7 @@ spec:
             - { name: STATE_DB, value: "/data/state.db" }
           resources:
             requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 512Mi }     # ganze Log-Datei liegt beim Verarbeiten im RAM
+            limits: { memory: 512Mi }     # the whole log file is held in RAM while processing
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

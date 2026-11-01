@@ -3,20 +3,20 @@ kind: ConfigMap
 metadata:
   name: bifrost-s3-syslog
 data:
-  # --- Quelle ---
+  # --- Source ---
   S3_BUCKET: "my-bifrost-logs"
-  S3_PREFIXES: "logs/"                 # mehrere: "logs/prod/,logs/stage/"
+  S3_PREFIXES: "logs/"                 # multiple: "logs/prod/,logs/stage/"
   AWS_REGION: "eu-central-1"
   # S3_ENDPOINT_URL: "https://minio.example.local"
   # S3_FORCE_PATH_STYLE: "true"
-  # --- Ziel ---
+  # --- Destination ---
   SYSLOG_HOST: "rsyslog.logging.svc.cluster.local"
   SYSLOG_PORT: "514"
   SYSLOG_PROTOCOL: "tcp"               # tcp | tls | udp
   SYSLOG_FACILITY: "local0"
   SYSLOG_APP_NAME: "bifrost"
-  SYSLOG_HOSTNAME: "bifrost-s3-syslog" # sonst wechselt der Pod-Name bei jedem Lauf
-  # --- Ablauf ---
+  SYSLOG_HOSTNAME: "bifrost-s3-syslog" # otherwise the pod name changes on every run
+  # --- Behaviour ---
   COMMIT_EVERY: "500"
   ON_OBJECT_CHANGE: "resume"
   LOG_LEVEL: "INFO"

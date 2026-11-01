@@ -1,6 +1,6 @@
-{{- $_ := required "config.S3_BUCKET ist Pflicht" .Values.config.S3_BUCKET -}}
-{{- $_ := required "config.SYSLOG_HOST ist Pflicht" .Values.config.SYSLOG_HOST -}}
-{{- if and (eq .Values.state.type "s3") (not .Values.state.s3Uri) }}{{ fail "state.s3Uri ist bei state.type=s3 Pflicht" }}{{ end -}}
+{{- $_ := required "config.S3_BUCKET is required" .Values.config.S3_BUCKET -}}
+{{- $_ := required "config.SYSLOG_HOST is required" .Values.config.SYSLOG_HOST -}}
+{{- if and (eq .Values.state.type "s3") (not .Values.state.s3Uri) }}{{ fail "state.s3Uri is required when state.type=s3" }}{{ end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
